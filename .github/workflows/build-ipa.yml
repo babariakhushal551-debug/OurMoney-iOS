@@ -32,8 +32,7 @@ jobs:
         run: |
           mkdir -p ios/Resources/webapp
           cp -R web/dist/. ios/Resources/webapp/
-          sips -z 1024 1024 web/public/pwa-512x512.png \
-            --out ios/Assets/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          python3 ci/make_icon.py ios/Assets/Assets.xcassets/AppIcon.appiconset/icon-1024.png
 
       - name: Install XcodeGen
         run: brew install xcodegen
