@@ -1,0 +1,70 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web app
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare iOS resources
+        run: |
+          mkdir -p ios/Resources/webapp
+          cp -R web/dist/. ios/Resources/webapp/
+          sips -z 1024 1024 web/public/pwa-512x512.png \
+            --out ios/Assets/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Archive and package IPA (unsigned)
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project OurMoney.xcodeproj \
+            -scheme OurMoney \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/OurMoney.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=
+          mkdir -p build/Payload
+          cp -R build/OurMoney.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -qry OurMoney.ipa Payload
+          cd ..
+          ls -la build/OurMoney.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OurMoney-ipa
+          path: ios/build/OurMoney.ipa
+          if-no-files-found: error
